@@ -8,13 +8,10 @@ from plotly.subplots import make_subplots
 # -------------------------------
 # PAGE CONFIG
 # -------------------------------
-st.set_page_config(
-    page_title="Nassau Candy Dashboard",
-    layout="wide"
-)
+st.set_page_config(page_title="Nassau Candy Dashboard", layout="wide")
 
 # -------------------------------
-# THEME (FIXED)
+# THEME
 # -------------------------------
 PLOT_THEME = dict(
     paper_bgcolor='rgba(0,0,0,0)',
@@ -55,7 +52,17 @@ division_filter = st.sidebar.multiselect(
     default=df['Division'].unique()
 )
 
+# Prevent empty selection crash
+if len(division_filter) == 0:
+    st.warning("Please select at least one division")
+    st.stop()
+
 df = df[df['Division'].isin(division_filter)]
+
+# Extra safety check
+if df.empty:
+    st.warning("No data available for selected filters")
+    st.stop()
 
 # -------------------------------
 # KPIs
@@ -93,7 +100,6 @@ fig = px.bar(
 )
 
 fig.update_layout(**PLOT_THEME)
-
 st.plotly_chart(fig, use_container_width=True)
 
 # -------------------------------
@@ -114,11 +120,7 @@ st.subheader("Pareto Analysis")
 fig2 = make_subplots(specs=[[{"secondary_y": True}]])
 
 fig2.add_trace(
-    go.Bar(
-        x=pareto['Product Name'],
-        y=pareto['Total_Profit'],
-        name="Profit"
-    ),
+    go.Bar(x=pareto['Product Name'], y=pareto['Total_Profit'], name="Profit"),
     secondary_y=False
 )
 
@@ -150,16 +152,18 @@ st.subheader("High Risk Products")
 
 risk_df = df[df['Risk_Flag'] == 'High Risk']
 
-# 🔥 FIX: GROUP BY PRODUCT
-risk_summary = risk_df.groupby('Product Name').agg({
-    'Sales': 'sum',
-    'Gross Profit': 'sum',
-    'Units': 'sum'
-}).reset_index()
+if risk_df.empty:
+    st.info("No high-risk products found based on current criteria.")
+else:
+    risk_summary = risk_df.groupby('Product Name').agg({
+        'Sales': 'sum',
+        'Gross Profit': 'sum',
+        'Units': 'sum'
+    }).reset_index()
 
-risk_summary['Margin %'] = (risk_summary['Gross Profit'] / risk_summary['Sales']) * 100
+    risk_summary['Margin %'] = (risk_summary['Gross Profit'] / risk_summary['Sales']) * 100
 
-st.dataframe(risk_summary)
+    st.dataframe(risk_summary)
 
 # -------------------------------
 # INSIGHTS
@@ -183,8 +187,8 @@ st.write(f"{len(cutoff_80)} products generate 80% of total profit")
 st.subheader("Business Recommendations")
 
 st.write("""
-- Focus marketing and inventory on high-profit products
-- Reprice or optimize cost for low-margin products
-- Reduce dependency on a small set of products (Pareto risk)
-- Improve efficiency in low-performing divisions
+- Focus marketing and inventory on high-profit products  
+- Reprice or optimize cost for low-margin products  
+- Reduce dependency on a small set of products (Pareto risk)  
+- Improve efficiency in low-performing divisions  
 """)
