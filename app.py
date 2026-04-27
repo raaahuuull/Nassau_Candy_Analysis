@@ -146,6 +146,8 @@ st.plotly_chart(fig, use_container_width=True)
 # -----------------------------
 st.subheader("Cost vs Sales Diagnostics")
 
+filtered_df['Cost'] = filtered_df['Sales'] - filtered_df['Gross profit']
+
 fig = px.scatter(
     filtered_df,
     x='Sales',
