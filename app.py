@@ -141,14 +141,11 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 
-# -----------------------------
-# COST vs SALES DIAGNOSTICS
-# -----------------------------
 # -------------------------------
 # COST vs SALES DIAGNOSTICS
 # -------------------------------
-st.markdown("---")
-st.subheader("Cost vs Sales Diagnostics")
+st.markdown("## Cost vs Sales Diagnostics")
+st.markdown("This chart shows cost efficiency of each product.")
 
 cost_df = filtered_df.copy()
 cost_df['Cost'] = cost_df['Sales'] - cost_df['Gross Profit']
@@ -158,9 +155,12 @@ fig = px.scatter(
     x='Sales',
     y='Cost',
     color='Division',
+    size='Sales',   # 👈 NEW (makes points visible)
     hover_data=['Product Name'],
     title='Cost vs Sales Analysis'
 )
+
+fig.update_traces(marker=dict(size=12, opacity=0.8))
 
 max_val = max(cost_df['Sales'].max(), cost_df['Cost'].max())
 
@@ -172,6 +172,8 @@ fig.add_shape(
 )
 
 st.plotly_chart(fig, use_container_width=True, height=500)
+
+st.caption("Points above the diagonal line indicate cost exceeding sales (potential loss).")
 
 # -----------------------------
 # HIGH RISK PRODUCTS
