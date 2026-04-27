@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 # -----------------------------
 # PAGE CONFIG
@@ -8,83 +9,69 @@ import plotly.express as px
 st.set_page_config(page_title="Nassau Candy Dashboard", layout="wide")
 
 # -----------------------------
-# DARK THEME (FORCE)
+# LOAD DATA (HYBRID)
 # -----------------------------
-st.markdown("""
-<style>
-body {
-    background-color: #0e1117;
-    color: white;
-}
-[data-testid="stMetric"] {
-    background-color: #1c1f26;
-    padding: 15px;
-    border-radius: 10px;
-}
-h1, h2, h3 {
-    color: #e6edf3;
-}
-</style>
-""", unsafe_allow_html=True)
+@st.cache_data
+def load_default_data():
+    return pd.read_csv("data.csv")  # replace with GitHub raw URL if needed
+
+st.sidebar.header("Data Source")
+
+uploaded_file = st.sidebar.file_uploader("Upload CSV (optional)", type=["csv"])
+
+if uploaded_file is not None:
+    try:
+        df = pd.read_csv(uploaded_file)
+        st.sidebar.success("Custom dataset loaded")
+    except Exception as e:
+        st.sidebar.error("Error loading file. Using default dataset.")
+        df = load_default_data()
+else:
+    df = load_default_data()
+    st.sidebar.info("Using default dataset")
 
 # -----------------------------
-# LOAD DATA
+# BASIC CHECK
 # -----------------------------
-uploaded_file = st.file_uploader("Upload your dataset", type=["csv"])
+required_cols = ['Division', 'Product Name', 'Sales', 'Gross Profit', 'Units']
 
-if uploaded_file is None:
-    st.warning("Please upload a dataset to continue")
+if not all(col in df.columns for col in required_cols):
+    st.error("Dataset format is incorrect. Required columns missing.")
     st.stop()
-
-df = pd.read_csv(uploaded_file)
-
-# -----------------------------
-# DATA CLEANING
-# -----------------------------
-df.columns = df.columns.str.strip()
 
 # -----------------------------
 # SIDEBAR FILTER
 # -----------------------------
-st.sidebar.header("Filters")
-
-divisions = df['Division'].unique()
-selected_div = st.sidebar.multiselect(
+division_filter = st.sidebar.multiselect(
     "Select Division",
-    divisions,
-    default=divisions
+    options=df['Division'].unique(),
+    default=df['Division'].unique()
 )
 
-df = df[df['Division'].isin(selected_div)]
+filtered_df = df[df['Division'].isin(division_filter)]
 
-if df.empty:
-    st.error("No data available for selected filters")
+if filtered_df.empty:
+    st.warning("No data available for selected filters.")
     st.stop()
 
 # -----------------------------
-# KPI CALCULATIONS
+# KPIs
 # -----------------------------
-total_revenue = df['Sales'].sum()
-total_profit = df['Gross Profit'].sum()
+total_revenue = filtered_df['Sales'].sum()
+total_profit = filtered_df['Gross Profit'].sum()
 overall_margin = (total_profit / total_revenue) * 100
 
-# -----------------------------
-# KPI DISPLAY
-# -----------------------------
 col1, col2, col3 = st.columns(3)
-
 col1.metric("Total Revenue", f"${total_revenue:,.0f}")
 col2.metric("Total Profit", f"${total_profit:,.0f}")
 col3.metric("Overall Margin", f"{overall_margin:.2f}%")
-
-st.divider()
 
 # -----------------------------
 # DIVISION ANALYSIS
 # -----------------------------
 st.subheader("Division Performance")
 
-division = df.groupby('Division').agg({
+division = filtered_df.groupby('Division').agg({
     'Sales': 'sum',
     'Gross Profit': 'sum'
 }).reset_index()
@@ -95,9 +82,8 @@ fig_div = px.bar(
     division,
     x='Division',
     y='Margin %',
-    color='Division',
-    title="Gross Margin by Division",
-    height=400
+    text_auto='.2f',
+    title='Gross Margin by Division'
 )
 
 st.plotly_chart(fig_div, use_container_width=True)
@@ -107,45 +93,70 @@ st.plotly_chart(fig_div, use_container_width=True)
 # -----------------------------
 st.subheader("Pareto Analysis")
 
-prod = df.groupby('Product Name').agg({
-    'Sales': 'sum',
+prod = filtered_df.groupby('Product Name').agg({
     'Gross Profit': 'sum'
 }).reset_index()
 
-pareto = prod.sort_values('Gross Profit', ascending=False)
-pareto['Cumulative %'] = pareto['Gross Profit'].cumsum() / pareto['Gross Profit'].sum() * 100
+pareto = prod.sort_values(by='Gross Profit', ascending=False)
+pareto['Cumulative %'] = (pareto['Gross Profit'].cumsum() / pareto['Gross Profit'].sum()) * 100
 
-top_n = pareto.head(5)
+pareto_display = pareto.head(10)
 
-fig_pareto = px.bar(
-    top_n,
-    x='Product Name',
-    y='Gross Profit',
-    title="Top Profit-Contributing Products",
-    height=400
+fig = go.Figure()
+
+fig.add_trace(go.Bar(
+    x=pareto_display['Product Name'],
+    y=pareto_display['Gross Profit'],
+    name='Profit'
+))
+
+fig.add_trace(go.Scatter(
+    x=pareto_display['Product Name'],
+    y=pareto_display['Cumulative %'],
+    name='Cumulative %',
+    yaxis='y2',
+    mode='lines+markers'
+))
+
+fig.update_layout(
+    title='Top Profit-Contributing Products',
+    yaxis=dict(title='Profit'),
+    yaxis2=dict(
+        title='Cumulative %',
+        overlaying='y',
+        side='right',
+        range=[0, 100]
+    )
 )
 
-st.plotly_chart(fig_pareto, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------
-# HIGH RISK PRODUCTS (FIXED)
+# HIGH RISK PRODUCTS
 # -----------------------------
 st.subheader("High Risk Products")
 
-prod['Margin %'] = (prod['Gross Profit'] / prod['Sales']) * 100
+prod_full = filtered_df.groupby('Product Name').agg({
+    'Sales': 'sum',
+    'Gross Profit': 'sum',
+    'Units': 'sum'
+}).reset_index()
 
-risk_products = prod[(prod['Margin %'] < 10) & (prod['Sales'] > prod['Sales'].mean())]
+prod_full['Margin %'] = (prod_full['Gross Profit'] / prod_full['Sales']) * 100
 
-if risk_products.empty:
+high_risk = prod_full[prod_full['Margin %'] < 20]
+
+if high_risk.empty:
     st.info("No high-risk products found based on current criteria.")
 else:
-    st.dataframe(risk_products)
+    st.dataframe(high_risk)
 
 # -----------------------------
-# KEY INSIGHTS (FIXED LOGIC)
+# KEY INSIGHTS (FIXED)
 # -----------------------------
 st.subheader("Key Insights")
 
+# Division insights
 if len(division) > 1:
     best_div = division.loc[division['Margin %'].idxmax()]
     worst_div = division.loc[division['Margin %'].idxmin()]
@@ -156,6 +167,7 @@ else:
     only_div = division.iloc[0]
     st.write(f"Selected Division: {only_div['Division']} ({only_div['Margin %']:.2f}%)")
 
+# Product insights
 best_product = pareto.iloc[0]
 cutoff_80 = pareto[pareto['Cumulative %'] <= 80]
 
