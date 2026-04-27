@@ -146,10 +146,11 @@ st.plotly_chart(fig, use_container_width=True)
 # -----------------------------
 st.subheader("Cost vs Sales Diagnostics")
 
-filtered_df['Cost'] = filtered_df['Sales'] - filtered_df['Gross Profit']
+cost_df = filtered_df.copy()
+cost_df['Cost'] = cost_df['Sales'] - cost_df['Gross Profit']
 
 fig = px.scatter(
-    filtered_df,
+    cost_df,
     x='Sales',
     y='Cost',
     color='Division',
@@ -157,14 +158,13 @@ fig = px.scatter(
     title='Cost vs Sales Analysis'
 )
 
-# Add reference line (ideal cost line)
-max_val = max(filtered_df['Sales'].max(), filtered_df['Cost'].max())
+max_val = max(cost_df['Sales'].max(), cost_df['Cost'].max())
 
 fig.add_shape(
     type="line",
     x0=0, y0=0,
     x1=max_val, y1=max_val,
-    line=dict(color="red", dash="dash"),
+    line=dict(color="red", dash="dash")
 )
 
 st.plotly_chart(fig, use_container_width=True)
