@@ -144,6 +144,10 @@ st.plotly_chart(fig, use_container_width=True)
 # -----------------------------
 # COST vs SALES DIAGNOSTICS
 # -----------------------------
+# -------------------------------
+# COST vs SALES DIAGNOSTICS
+# -------------------------------
+st.markdown("---")
 st.subheader("Cost vs Sales Diagnostics")
 
 cost_df = filtered_df.copy()
@@ -167,7 +171,7 @@ fig.add_shape(
     line=dict(color="red", dash="dash")
 )
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True, height=500)
 
 # -----------------------------
 # HIGH RISK PRODUCTS
